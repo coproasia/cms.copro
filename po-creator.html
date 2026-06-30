@@ -1772,7 +1772,7 @@ Jalan PJS 5/30, 46150 Petaling Jaya Selangor Darul Ehsan, Malaysia.</textarea>
                 const get   = (r, c) => String((ws[XLSX.utils.encode_cell({r, c})] || {}).v || '');
 
                 const matches = [];
-                for (let r = 2; r <= range.e.r; r++) {
+                for (let r = 1; r <= range.e.r; r++) {
                     if (get(r, 0).toLowerCase().includes(name.toLowerCase())) {
                         matches.push({ name: get(r,0), contact: get(r,1), phone: get(r,2), fax: get(r,3), address: get(r,5) });
                     }
