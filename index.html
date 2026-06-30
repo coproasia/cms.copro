@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Copro Management System</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #1e40af 0%, #059669 100%);
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container { max-width: 900px; width: 100%; }
+
+        .header {
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            text-align: center;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .header-logo { max-width: 300px; height: auto; margin-bottom: 20px; }
+        .header h1 { color: #333; font-size: 28px; margin-bottom: 8px; }
+        .header p  { color: #666; font-size: 15px; }
+
+        .section-label {
+            color: white;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin: 20px 0 10px 4px;
+            opacity: 0.85;
+        }
+
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 6px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 26px 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            text-align: center;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: block;
+            cursor: pointer;
+        }
+
+        .card:hover { transform: translateY(-5px); box-shadow: 0 15px 40px rgba(0,0,0,0.3); }
+
+        .card-icon { font-size: 42px; margin-bottom: 12px; }
+        .card h2   { color: #333; font-size: 18px; margin-bottom: 8px; }
+        .card p    { color: #666; font-size: 13px; line-height: 1.5; }
+
+        /* Card accent colours */
+        .card-red    { border-top: 4px solid #dc2626; }
+        .card-blue   { border-top: 4px solid #4c6ef5; }
+        .card-green  { border-top: 4px solid #059669; }
+        .card-orange { border-top: 4px solid #d97706; }
+        .card-teal   { border-top: 4px solid #0d9488; }
+        .card-purple { border-top: 4px solid #7c3aed; }
+
+        /* ── Login ── */
+        #loginScreen {
+            position: fixed; inset: 0;
+            background: linear-gradient(135deg, #1e40af 0%, #059669 100%);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 9999;
+        }
+        #loginScreen.hidden { display: none; }
+
+        .login-box {
+            background: white; padding: 40px; border-radius: 10px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            width: 100%; max-width: 350px; text-align: center;
+        }
+        .login-box h2 { color: #333; margin-bottom: 30px; font-size: 24px; }
+        .login-box .form-group { margin-bottom: 20px; text-align: left; }
+        .login-box label { display: block; color: #333; font-weight: 600; margin-bottom: 8px; font-size: 14px; }
+        .login-box input {
+            width: 100%; padding: 12px; border: 2px solid #e5e7eb;
+            border-radius: 6px; font-size: 14px; font-family: inherit; transition: border-color 0.3s;
+        }
+        .login-box input:focus { outline: none; border-color: #059669; }
+        .login-box button {
+            width: 100%; padding: 12px; background: #059669; color: white;
+            border: none; border-radius: 6px; font-size: 16px; font-weight: 600;
+            cursor: pointer; margin-top: 10px; transition: background 0.3s;
+        }
+        .login-box button:hover { background: #047857; }
+        .login-error { color: #dc2626; font-size: 14px; margin-top: 15px; display: none; }
+        .login-error.show { display: block; }
+
+        @media (max-width: 600px) {
+            .cards { grid-template-columns: 1fr 1fr; }
+            .header h1 { font-size: 22px; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Login Screen -->
+<div id="loginScreen">
+    <div class="login-box">
+        <h2>🔐 Copro CMS Login</h2>
+        <div class="form-group">
+            <label for="username">Username</label>
+            <input type="text" id="username" placeholder="Enter username" autocomplete="off">
+        </div>
+        <div class="form-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" placeholder="Enter password" autocomplete="off">
+        </div>
+        <button onclick="handleLogin()">Sign In</button>
+        <div class="login-error" id="loginError">❌ Invalid username or password</div>
+    </div>
+</div>
+
+<div class="container">
+    <div class="header">
+        <img src="Copro_Logo.png" alt="Copro Logo" class="header-logo">
+        <h1>Copro Management System</h1>
+        <p>Unified Invoice, Quotation & Account Management</p>
+    </div>
+
+    <!-- CMS Modules -->
+    <div class="section-label">📋 CMS Modules</div>
+    <div class="cards">
+        <a href="invoice-creator.html" class="card card-red">
+            <div class="card-icon">📝</div>
+            <h2>Create Invoice</h2>
+            <p>Generate professional invoices and delivery orders.</p>
+        </a>
+        <a href="po-creator.html" class="card card-blue">
+            <div class="card-icon">📦</div>
+            <h2>Purchase Order</h2>
+            <p>Generate purchase orders and record as expenses.</p>
+        </a>
+        <a href="accounting-manager.html" class="card card-green">
+            <div class="card-icon">💼</div>
+            <h2>Manage Accounts</h2>
+            <p>Track payments, view summaries and export P&L.</p>
+        </a>
+    </div>
+
+    <!-- Quotation Modules -->
+    <div class="section-label">📄 Quotation Modules</div>
+    <div class="cards">
+        <a href="quotation-creator.html" class="card card-red">
+            <div class="card-icon">📋</div>
+            <h2>Create Quotation</h2>
+            <p>Generate professional quotations and record to Excel.</p>
+        </a>
+        <a href="quotation-search.html" class="card card-orange">
+            <div class="card-icon">🔍</div>
+            <h2>Search Quotation</h2>
+            <p>Search and view previously recorded quotations.</p>
+        </a>
+        <a href="customer-directory.html" class="card card-teal">
+            <div class="card-icon">👥</div>
+            <h2>Customer Directory</h2>
+            <p>Manage customer details and auto-populate quotations.</p>
+        </a>
+    </div>
+</div>
+
+<script>
+    const VALID_USERNAME = 'wilsongan';
+    const VALID_PASSWORD = 'chowcibai29';
+
+    function handleLogin() {
+        const username = document.getElementById('username').value.trim();
+        const password = document.getElementById('password').value;
+        const errorMsg = document.getElementById('loginError');
+
+        if (username === VALID_USERNAME && password === VALID_PASSWORD) {
+            errorMsg.classList.remove('show');
+            document.getElementById('loginScreen').classList.add('hidden');
+            // Set both session keys so all modules recognise the login
+            sessionStorage.setItem('copro_logged_in', 'true');
+            sessionStorage.setItem('copro_auth', 'ok');
+        } else {
+            errorMsg.classList.add('show');
+            document.getElementById('password').value = '';
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        document.getElementById('password').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') handleLogin();
+        });
+        document.getElementById('username').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') document.getElementById('password').focus();
+        });
+        if (sessionStorage.getItem('copro_logged_in') === 'true') {
+            document.getElementById('loginScreen').classList.add('hidden');
+        }
+    });
+</script>
+</body>
+</html>

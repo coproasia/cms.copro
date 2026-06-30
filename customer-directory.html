@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Directory — Copro</title>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #1e40af 0%, #059669 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .page-header {
+            background: white; border-radius: 10px; padding: 18px 25px;
+            margin-bottom: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            display: flex; align-items: center; gap: 16px;
+        }
+        .page-header h1 { font-size: 22px; color: #333; }
+        .back-link {
+            padding: 7px 14px; background: #059669; color: white;
+            text-decoration: none; border-radius: 5px; font-size: 12px;
+            font-weight: 600; white-space: nowrap;
+        }
+        .back-link:hover { background: #047857; }
+
+        /* Tab switcher */
+        .tab-bar {
+            background: white; border-radius: 10px; padding: 6px;
+            margin-bottom: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            display: flex; gap: 6px;
+        }
+        .tab-btn {
+            flex: 1; padding: 12px; border: none; border-radius: 7px;
+            font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.2s;
+            background: #f3f4f6; color: #666;
+        }
+        .tab-btn.active-cust  { background: #0d9488; color: white; }
+        .tab-btn.active-supp  { background: #7c3aed; color: white; }
+
+        /* File loader bar */
+        .file-bar {
+            background: white; border-radius: 10px; padding: 14px 20px;
+            margin-bottom: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+        }
+        .file-bar label { font-weight: 600; font-size: 13px; color: #333; }
+        #fileStatusText { font-size: 12px; color: #166534; background: #f0fdf4; padding: 5px 12px; border-radius: 20px; border: 1px solid #86efac; }
+        .load-btn {
+            padding: 9px 18px; background: #1e3a5f; color: white;
+            border: none; border-radius: 6px; font-weight: 700; font-size: 13px;
+            cursor: pointer; transition: background 0.2s;
+        }
+        .load-btn:hover { background: #162d4a; }
+
+        /* Main 2-column layout */
+        .container {
+            max-width: 1200px; margin: 0 auto;
+            display: grid; grid-template-columns: 360px 1fr; gap: 16px;
+        }
+
+        .panel {
+            background: white; border-radius: 10px; padding: 22px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2); height: fit-content;
+        }
+
+        h2 { font-size: 15px; color: #333; margin: 16px 0 10px; border-left: 4px solid #0d9488; padding-left: 10px; }
+        h2.supp { border-left-color: #7c3aed; }
+
+        .form-group { margin-bottom: 12px; }
+        label { display: block; font-weight: 600; color: #444; margin-bottom: 4px; font-size: 12px; }
+        input[type="text"], input[type="tel"], input[type="email"], textarea, select {
+            width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 5px;
+            font-size: 13px; font-family: inherit; transition: border-color 0.2s;
+        }
+        input:focus, textarea:focus, select:focus { outline: none; border-color: #0d9488; box-shadow: 0 0 4px rgba(13,148,136,0.2); }
+        .supp-mode input:focus, .supp-mode textarea:focus { border-color: #7c3aed; box-shadow: 0 0 4px rgba(124,58,237,0.2); }
+        textarea { resize: vertical; min-height: 56px; }
+        .uppercase-input { text-transform: uppercase; }
+
+        .btn { padding: 10px 16px; border: none; border-radius: 5px; font-weight: 700; cursor: pointer; font-size: 13px; transition: all 0.2s; width: 100%; margin-bottom: 7px; }
+        .btn-teal   { background: #0d9488; color: white; } .btn-teal:hover   { background: #0f766e; }
+        .btn-purple { background: #7c3aed; color: white; } .btn-purple:hover { background: #6d28d9; }
+        .btn-ghost  { background: #f3f4f6; color: #555;  } .btn-ghost:hover  { background: #e5e7eb; }
+
+        /* Status message */
+        .status-message {
+            padding: 14px 22px; border-radius: 8px; text-align: center; font-weight: 600;
+            display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+            z-index: 9999; min-width: 280px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .status-message.success { display: block; background: #d3f9d8; color: #2b8a3e; border: 2px solid #51cf66; }
+        .status-message.error   { display: block; background: #ffe0e0; color: #c92a2a; border: 2px solid #ff6b6b; }
+
+        /* Table panel */
+        .search-bar { display: flex; gap: 8px; margin-bottom: 12px; }
+        .search-bar input { flex: 1; padding: 9px 12px; border: 1px solid #ddd; border-radius: 5px; font-size: 13px; font-family: inherit; }
+        .search-bar input:focus { outline: none; border-color: #0d9488; }
+        .search-bar button { padding: 9px 16px; background: #0d9488; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 600; font-size: 13px; }
+        .search-bar button.supp { background: #7c3aed; }
+
+        .dir-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .dir-table th { padding: 8px 10px; text-align: left; font-size: 11px; font-weight: 700; color: white; }
+        .dir-table th.cust-hdr { background: #0d9488; }
+        .dir-table th.supp-hdr { background: #7c3aed; }
+        .dir-table td { padding: 8px 10px; border-bottom: 1px solid #eee; vertical-align: top; font-size: 12px; }
+        .dir-table tr:nth-child(even) td { background: #fafafa; }
+        .dir-table tr:hover td { background: #f0fdfa; }
+        .supp-mode .dir-table tr:hover td { background: #f5f3ff; }
+
+        .action-btn-sm { padding: 3px 8px; border-radius: 3px; cursor: pointer; font-size: 11px; border: none; margin: 1px; }
+        .edit-btn { background: #dbeafe; color: #1d4ed8; } .edit-btn:hover { background: #1d4ed8; color: white; }
+        .del-btn  { background: #fee2e2; color: #dc2626; } .del-btn:hover  { background: #dc2626; color: white; }
+
+        .empty-state { text-align: center; color: #aaa; padding: 40px 20px; font-size: 14px; }
+
+        /* Login */
+        #loginScreen { position: fixed; inset: 0; background: linear-gradient(135deg, #1e40af 0%, #059669 100%); display: flex; align-items: center; justify-content: center; z-index: 99999; }
+        .login-box { background: white; border-radius: 16px; padding: 40px 36px; width: 340px; }
+        .login-box h2 { font-size: 22px; color: #333; margin-bottom: 24px; text-align: center; }
+        .login-field { width: 100%; padding: 12px; margin-bottom: 14px; border: 1.5px solid #ddd; border-radius: 8px; font-size: 14px; font-family: inherit; }
+        .login-field:focus { outline: none; border-color: #0d9488; }
+        .login-btn { width: 100%; padding: 13px; background: #0d9488; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: 700; cursor: pointer; }
+        #loginError { color: #dc2626; font-size: 13px; margin-top: 10px; text-align: center; }
+
+        @media (max-width: 860px) { .container { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+
+<!-- Login -->
+<div id="loginScreen">
+    <div class="login-box">
+        <h2>🔐 Copro Login</h2>
+        <input class="login-field" id="loginUser" type="text" placeholder="Username" autocomplete="off"
+               onkeydown="if(event.key==='Enter')document.getElementById('loginPass').focus()">
+        <input class="login-field" id="loginPass" type="password" placeholder="Password"
+               onkeydown="if(event.key==='Enter')doLogin()">
+        <button class="login-btn" onclick="doLogin()">Sign In</button>
+        <div id="loginError"></div>
+    </div>
+</div>
+
+<div id="statusMessage" class="status-message"></div>
+
+<!-- Page Header -->
+<div class="page-header">
+    <a href="index.html" class="back-link">← Dashboard</a>
+    <h1 id="pageTitle">👥 Customer & Supplier Directory</h1>
+    <span id="fileStatusText" style="display:none;">No file loaded</span>
+</div>
+
+<!-- Tab bar -->
+<div class="tab-bar" style="max-width:1200px;margin:0 auto 16px;">
+    <button class="tab-btn active-cust" id="tabCust" onclick="switchTab('customers')">👥 Customers</button>
+    <button class="tab-btn" id="tabSupp" onclick="switchTab('suppliers')">🏭 Suppliers</button>
+</div>
+
+<!-- File loader -->
+<div class="file-bar" style="max-width:1200px;margin:0 auto 16px;">
+    <label>📂 Directory File:</label>
+    <button class="load-btn" onclick="loadDirectoryFile()">Load / Change Excel File</button>
+    <span id="fileStatusText2" style="font-size:12px;color:#666;">No file loaded — click to select your Copro Directory.xlsx</span>
+</div>
+
+<div class="container">
+
+    <!-- LEFT PANEL: Form -->
+    <div class="panel" id="formPanel">
+
+        <!-- CUSTOMER FORM -->
+        <div id="customerForm">
+            <h2>Add / Update Customer</h2>
+            <div class="form-group"><label>Customer Name *</label>
+                <input type="text" id="custName" class="uppercase-input" placeholder="COMPANY SDN BHD" oninput="this.value=this.value.toUpperCase()">
+            </div>
+            <div class="form-group"><label>Contact Person</label>
+                <input type="text" id="custContact" class="uppercase-input" placeholder="JOHN DOE" oninput="this.value=this.value.toUpperCase()">
+            </div>
+            <div class="form-group"><label>Phone</label>
+                <input type="tel" id="custPhone" placeholder="012-345 6789">
+            </div>
+            <div class="form-group"><label>Fax</label>
+                <input type="tel" id="custFax" placeholder="">
+            </div>
+            <div class="form-group"><label>Email</label>
+                <input type="email" id="custEmail" placeholder="email@company.com">
+            </div>
+            <div class="form-group"><label>Address</label>
+                <textarea id="custAddress" class="uppercase-input" placeholder="Full billing address" oninput="this.value=this.value.toUpperCase()"></textarea>
+            </div>
+            <div class="form-group"><label>Delivery Address <span style="font-weight:400;color:#999;">(if different)</span></label>
+                <textarea id="custDelivery" class="uppercase-input" placeholder="Leave blank if same as address" oninput="this.value=this.value.toUpperCase()"></textarea>
+            </div>
+            <div class="form-group"><label>Notes</label>
+                <input type="text" id="custNotes" placeholder="Optional notes">
+            </div>
+            <button class="btn btn-teal" onclick="saveRecord('customers')" style="margin-top:4px;">💾 Save Customer</button>
+            <button class="btn btn-ghost" onclick="clearForm()">✕ Clear Form</button>
+        </div>
+
+        <!-- SUPPLIER FORM -->
+        <div id="supplierForm" style="display:none;">
+            <h2 class="supp">Add / Update Supplier</h2>
+            <div class="form-group"><label>Supplier Name *</label>
+                <input type="text" id="suppName" class="uppercase-input" placeholder="SUPPLIER SDN BHD" oninput="this.value=this.value.toUpperCase()">
+            </div>
+            <div class="form-group"><label>Contact Person</label>
+                <input type="text" id="suppContact" class="uppercase-input" placeholder="JANE SMITH" oninput="this.value=this.value.toUpperCase()">
+            </div>
+            <div class="form-group"><label>Phone</label>
+                <input type="tel" id="suppPhone" placeholder="03-1234 5678">
+            </div>
+            <div class="form-group"><label>Fax</label>
+                <input type="tel" id="suppFax" placeholder="">
+            </div>
+            <div class="form-group"><label>Email</label>
+                <input type="email" id="suppEmail" placeholder="sales@supplier.com">
+            </div>
+            <div class="form-group"><label>Address</label>
+                <textarea id="suppAddress" class="uppercase-input" placeholder="Full address" oninput="this.value=this.value.toUpperCase()"></textarea>
+            </div>
+            <div class="form-group"><label>Payment Terms</label>
+                <input type="text" id="suppTerms" placeholder="e.g. NET 30, COD">
+            </div>
+            <div class="form-group"><label>Notes</label>
+                <input type="text" id="suppNotes" placeholder="Optional notes">
+            </div>
+            <button class="btn btn-purple" onclick="saveRecord('suppliers')" style="margin-top:4px;">💾 Save Supplier</button>
+            <button class="btn btn-ghost" onclick="clearForm()">✕ Clear Form</button>
+        </div>
+
+    </div>
+
+    <!-- RIGHT PANEL: Table -->
+    <div class="panel">
+        <div class="search-bar">
+            <input type="text" id="searchInput" placeholder="Search..." oninput="filterTable()">
+            <button id="searchBtn" onclick="filterTable()">Search</button>
+        </div>
+        <div id="tableWrapper">
+            <div class="empty-state">Load your <strong>Copro Directory.xlsx</strong> file above to view records.</div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+// ── Auth ─────────────────────────────────────────────────────────────────────
+(function() {
+    if (sessionStorage.getItem('copro_logged_in') === 'true' ||
+        sessionStorage.getItem('copro_auth') === 'ok') {
+        document.getElementById('loginScreen').style.display = 'none';
+    }
+})();
+function doLogin() {
+    const user = document.getElementById('loginUser').value.trim();
+    const pass = document.getElementById('loginPass').value;
+    if (user === 'wilsongan' && (pass === 'chowcibai29' || pass === 'copro123')) {
+        sessionStorage.setItem('copro_logged_in', 'true');
+        sessionStorage.setItem('copro_auth', 'ok');
+        document.getElementById('loginScreen').style.display = 'none';
+    } else {
+        document.getElementById('loginError').textContent = 'Incorrect username or password.';
+        document.getElementById('loginPass').value = '';
+    }
+}
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let currentTab    = 'customers';
+let dirFileHandle = null;
+let allCustomers  = [];
+let allSuppliers  = [];
+
+// ── Status message ────────────────────────────────────────────────────────────
+function showMessage(msg, type) {
+    const el = document.getElementById('statusMessage');
+    el.textContent = msg;
+    el.className = 'status-message ' + type;
+    setTimeout(() => { el.className = 'status-message'; }, 4000);
+}
+
+// ── Tab switcher ──────────────────────────────────────────────────────────────
+function switchTab(tab) {
+    currentTab = tab;
+    const isCust = tab === 'customers';
+    document.getElementById('tabCust').className        = 'tab-btn' + (isCust ? ' active-cust' : '');
+    document.getElementById('tabSupp').className        = 'tab-btn' + (!isCust ? ' active-supp' : '');
+    document.getElementById('customerForm').style.display = isCust ? '' : 'none';
+    document.getElementById('supplierForm').style.display = isCust ? 'none' : '';
+    document.getElementById('searchBtn').className      = 'search-bar button' + (!isCust ? ' supp' : '');
+    clearForm();
+    renderTable(isCust ? allCustomers : allSuppliers);
+}
+
+// ── IndexedDB ─────────────────────────────────────────────────────────────────
+function openDB() {
+    return new Promise((res, rej) => {
+        const req = indexedDB.open('CoproCMS', 1);
+        req.onupgradeneeded = e => e.target.result.createObjectStore('handles');
+        req.onsuccess = e => res(e.target.result);
+        req.onerror   = e => rej(e);
+    });
+}
+async function saveHandle(key, handle) {
+    const db = await openDB();
+    return new Promise((res, rej) => {
+        const tx = db.transaction('handles', 'readwrite');
+        tx.objectStore('handles').put(handle, key);
+        tx.oncomplete = res; tx.onerror = rej;
+    });
+}
+async function loadHandle(key) {
+    const db = await openDB();
+    return new Promise((res, rej) => {
+        const tx  = db.transaction('handles', 'readonly');
+        const req = tx.objectStore('handles').get(key);
+        req.onsuccess = () => res(req.result);
+        req.onerror   = rej;
+    });
+}
+
+// ── File load ─────────────────────────────────────────────────────────────────
+async function loadDirectoryFile() {
+    if (!window.showOpenFilePicker) { showMessage('Use Edge or Chrome.', 'error'); return; }
+    try {
+        const [fh] = await window.showOpenFilePicker({
+            types: [{ description: 'Excel', accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } }]
+        });
+        dirFileHandle = fh;
+        await saveHandle('directoryFile', fh);
+        const f = await fh.getFile();
+        updateFileUI(f.name);
+        await refreshAll();
+        showMessage('✅ ' + f.name + ' loaded.', 'success');
+    } catch(e) {
+        if (e.name !== 'AbortError') showMessage('Error: ' + e.message, 'error');
+    }
+}
+
+function updateFileUI(name) {
+    document.getElementById('fileStatusText').textContent  = '📂 ' + name;
+    document.getElementById('fileStatusText').style.display = '';
+    document.getElementById('fileStatusText2').textContent = '✅ Loaded: ' + name;
+    document.getElementById('fileStatusText2').style.color = '#166534';
+}
+
+async function initHandle() {
+    try {
+        const h = await loadHandle('directoryFile');
+        if (!h) return;
+        const perm    = await h.queryPermission({ mode: 'readwrite' });
+        const granted = perm === 'granted' ? 'granted' : await h.requestPermission({ mode: 'readwrite' });
+        if (granted === 'granted') {
+            dirFileHandle = h;
+            const f = await h.getFile();
+            updateFileUI(f.name);
+            await refreshAll();
+        }
+    } catch(e) { /* silent */ }
+}
+
+// ── Read from Excel ───────────────────────────────────────────────────────────
+async function readSheet(sheetName) {
+    if (!dirFileHandle) return [];
+    const file  = await dirFileHandle.getFile();
+    const ab    = await file.arrayBuffer();
+    const wb    = XLSX.read(ab, { type: 'array' });
+    const ws    = wb.Sheets[sheetName];
+    if (!ws || !ws['!ref']) return [];
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    const rows  = [];
+    const get   = (r, c) => String((ws[XLSX.utils.encode_cell({r, c})] || {}).v || '');
+    for (let r = 2; r <= range.e.r; r++) {  // row 0=title, row 1=header, data from row 2
+        if (!get(r, 0) || get(r, 0).toLowerCase().includes('example')) continue;
+        rows.push(sheetName === 'Customers' ? {
+            name: get(r,0), contact: get(r,1), phone: get(r,2), fax: get(r,3),
+            email: get(r,4), address: get(r,5), delivery: get(r,6), notes: get(r,7)
+        } : {
+            name: get(r,0), contact: get(r,1), phone: get(r,2), fax: get(r,3),
+            email: get(r,4), address: get(r,5), terms: get(r,6), notes: get(r,7)
+        });
+    }
+    return rows;
+}
+
+// ── Write to Excel ────────────────────────────────────────────────────────────
+async function writeSheet(sheetName, rows) {
+    const file = await dirFileHandle.getFile();
+    const ab   = await file.arrayBuffer();
+    const wb   = XLSX.read(ab, { type: 'array' });
+
+    const headerRow = sheetName === 'Customers'
+        ? ['Customer Name','Contact Person','Phone','Fax','Email','Address','Delivery Address','Notes']
+        : ['Supplier Name','Contact Person','Phone','Fax','Email','Address','Payment Terms','Notes'];
+
+    // Rebuild sheet keeping the title row style by using aoa_to_sheet for data rows
+    // then manually setting header and title
+    const wsData = [headerRow];
+    rows.forEach(r => wsData.push(
+        sheetName === 'Customers'
+            ? [r.name, r.contact, r.phone, r.fax, r.email, r.address, r.delivery, r.notes]
+            : [r.name, r.contact, r.phone, r.fax, r.email, r.address, r.terms,    r.notes]
+    ));
+
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    const colWidths = sheetName === 'Customers'
+        ? [32,22,16,14,28,42,42,24]
+        : [32,22,16,14,28,42,18,24];
+    ws['!cols'] = colWidths.map(w => ({ wch: w }));
+
+    // Insert a title row above
+    XLSX.utils.sheet_add_aoa(ws, [[`COPRO — ${sheetName === 'Customers' ? 'Customer' : 'Supplier'} Directory`]], { origin: { r: 0, c: 0 } });
+
+    wb.Sheets[sheetName] = ws;
+    const out      = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const writable = await dirFileHandle.createWritable();
+    await writable.write(new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    await writable.close();
+}
+
+// ── Save record ───────────────────────────────────────────────────────────────
+async function saveRecord(type) {
+    if (!dirFileHandle) { showMessage('⚠️ Load your Copro Directory.xlsx file first.', 'error'); return; }
+
+    let name, record;
+    if (type === 'customers') {
+        name = document.getElementById('custName').value.trim();
+        if (!name) { showMessage('Customer Name is required.', 'error'); return; }
+        record = {
+            name, contact: document.getElementById('custContact').value.trim(),
+            phone: document.getElementById('custPhone').value.trim(),
+            fax:   document.getElementById('custFax').value.trim(),
+            email: document.getElementById('custEmail').value.trim(),
+            address:  document.getElementById('custAddress').value.trim(),
+            delivery: document.getElementById('custDelivery').value.trim(),
+            notes:    document.getElementById('custNotes').value.trim()
+        };
+        const idx = allCustomers.findIndex(c => c.name === name);
+        if (idx >= 0) allCustomers[idx] = record; else allCustomers.push(record);
+        try {
+            await writeSheet('Customers', allCustomers);
+            showMessage('✅ Customer saved!', 'success');
+        } catch(e) {
+            showMessage('❌ Save failed: ' + e.message, 'error');
+            return;
+        }
+    } else {
+        name = document.getElementById('suppName').value.trim();
+        if (!name) { showMessage('Supplier Name is required.', 'error'); return; }
+        record = {
+            name, contact: document.getElementById('suppContact').value.trim(),
+            phone: document.getElementById('suppPhone').value.trim(),
+            fax:   document.getElementById('suppFax').value.trim(),
+            email: document.getElementById('suppEmail').value.trim(),
+            address: document.getElementById('suppAddress').value.trim(),
+            terms:   document.getElementById('suppTerms').value.trim(),
+            notes:   document.getElementById('suppNotes').value.trim()
+        };
+        const idx = allSuppliers.findIndex(s => s.name === name);
+        if (idx >= 0) allSuppliers[idx] = record; else allSuppliers.push(record);
+        try {
+            await writeSheet('Suppliers', allSuppliers);
+            showMessage('✅ Supplier saved!', 'success');
+        } catch(e) {
+            showMessage('❌ Save failed: ' + e.message, 'error');
+            return;
+        }
+    }
+    clearForm();
+    renderTable(type === 'customers' ? allCustomers : allSuppliers);
+}
+
+// ── Delete ────────────────────────────────────────────────────────────────────
+async function deleteRecord(type, name) {
+    if (!confirm('Delete "' + name + '"?')) return;
+    if (type === 'customers') {
+        allCustomers = allCustomers.filter(c => c.name !== name);
+        await writeSheet('Customers', allCustomers);
+        renderTable(allCustomers);
+    } else {
+        allSuppliers = allSuppliers.filter(s => s.name !== name);
+        await writeSheet('Suppliers', allSuppliers);
+        renderTable(allSuppliers);
+    }
+    showMessage('Deleted.', 'success');
+}
+
+// ── Edit ──────────────────────────────────────────────────────────────────────
+function editRecord(type, idx) {
+    const r = type === 'customers' ? allCustomers[idx] : allSuppliers[idx];
+    if (type === 'customers') {
+        document.getElementById('custName').value    = r.name;
+        document.getElementById('custContact').value = r.contact;
+        document.getElementById('custPhone').value   = r.phone;
+        document.getElementById('custFax').value     = r.fax;
+        document.getElementById('custEmail').value   = r.email;
+        document.getElementById('custAddress').value = r.address;
+        document.getElementById('custDelivery').value= r.delivery;
+        document.getElementById('custNotes').value   = r.notes;
+    } else {
+        document.getElementById('suppName').value    = r.name;
+        document.getElementById('suppContact').value = r.contact;
+        document.getElementById('suppPhone').value   = r.phone;
+        document.getElementById('suppFax').value     = r.fax;
+        document.getElementById('suppEmail').value   = r.email;
+        document.getElementById('suppAddress').value = r.address;
+        document.getElementById('suppTerms').value   = r.terms;
+        document.getElementById('suppNotes').value   = r.notes;
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function clearForm() {
+    ['custName','custContact','custPhone','custFax','custEmail','custAddress','custDelivery','custNotes',
+     'suppName','suppContact','suppPhone','suppFax','suppEmail','suppAddress','suppTerms','suppNotes']
+        .forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
+}
+
+// ── Table render ──────────────────────────────────────────────────────────────
+function renderTable(rows) {
+    const isCust  = currentTab === 'customers';
+    const hdrCls  = isCust ? 'cust-hdr' : 'supp-hdr';
+    const wrapper = document.getElementById('tableWrapper');
+    if (!dirFileHandle) {
+        wrapper.innerHTML = '<div class="empty-state">Load your <strong>Copro Directory.xlsx</strong> above to view records.</div>';
+        return;
+    }
+    if (rows.length === 0) {
+        wrapper.innerHTML = '<div class="empty-state">No ' + (isCust ? 'customers' : 'suppliers') + ' found.</div>';
+        return;
+    }
+    const col3 = isCust ? 'Address' : 'Terms';
+    let html = `<table class="dir-table"><thead><tr>
+        <th class="${hdrCls}">#</th>
+        <th class="${hdrCls}">${isCust ? 'Customer' : 'Supplier'} Name</th>
+        <th class="${hdrCls}">Contact</th>
+        <th class="${hdrCls}">Phone</th>
+        <th class="${hdrCls}">${col3}</th>
+        <th class="${hdrCls}"></th>
+    </tr></thead><tbody>`;
+    rows.forEach((r, i) => {
+        const col3val = isCust ? (r.address||'').replace(/\n/g,'<br>') : (r.terms||'');
+        const safeName = (r.name||'').replace(/'/g,"\\'");
+        html += `<tr>
+            <td>${i+1}</td>
+            <td><strong>${r.name}</strong></td>
+            <td>${r.contact||''}</td>
+            <td>${r.phone||''}</td>
+            <td>${col3val}</td>
+            <td>
+                <button class="action-btn-sm edit-btn" onclick="editRecord('${currentTab}',${i})">Edit</button>
+                <button class="action-btn-sm del-btn" onclick="deleteRecord('${currentTab}','${safeName}')">Del</button>
+            </td>
+        </tr>`;
+    });
+    html += '</tbody></table>';
+    wrapper.innerHTML = html;
+}
+
+function filterTable() {
+    const q    = document.getElementById('searchInput').value.toLowerCase();
+    const rows = currentTab === 'customers' ? allCustomers : allSuppliers;
+    renderTable(rows.filter(r => (r.name||'').toLowerCase().includes(q) || (r.contact||'').toLowerCase().includes(q)));
+}
+
+async function refreshAll() {
+    allCustomers = await readSheet('Customers');
+    allSuppliers = await readSheet('Suppliers');
+    renderTable(currentTab === 'customers' ? allCustomers : allSuppliers);
+}
+
+window.addEventListener('load', initHandle);
+</script>
+</body>
+</html>
