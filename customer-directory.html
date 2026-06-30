@@ -375,8 +375,10 @@ async function readSheet(sheetName) {
     const range = XLSX.utils.decode_range(ws['!ref']);
     const rows  = [];
     const get   = (r, c) => String((ws[XLSX.utils.encode_cell({r, c})] || {}).v || '');
-    for (let r = 2; r <= range.e.r; r++) {  // row 0=title, row 1=header, data from row 2
-        if (!get(r, 0) || get(r, 0).toLowerCase().includes('example')) continue;
+    for (let r = 1; r <= range.e.r; r++) {  // start at r=1; skip title/header rows
+        if (!get(r, 0)) continue;
+        const v = get(r, 0).toLowerCase();
+        if (v.includes('example') || v.includes('copro') || v === 'customer name' || v === 'supplier name') continue;
         rows.push(sheetName === 'Customers' ? {
             name: get(r,0), contact: get(r,1), phone: get(r,2), fax: get(r,3),
             email: get(r,4), address: get(r,5), delivery: get(r,6), notes: get(r,7)
@@ -398,9 +400,9 @@ async function writeSheet(sheetName, rows) {
         ? ['Customer Name','Contact Person','Phone','Fax','Email','Address','Delivery Address','Notes']
         : ['Supplier Name','Contact Person','Phone','Fax','Email','Address','Payment Terms','Notes'];
 
-    // Rebuild sheet keeping the title row style by using aoa_to_sheet for data rows
-    // then manually setting header and title
-    const wsData = [headerRow];
+    // Row 0 = title, Row 1 = header, Row 2+ = data
+    const titleRow = [`COPRO — ${sheetName === 'Customers' ? 'Customer' : 'Supplier'} Directory`];
+    const wsData = [titleRow, headerRow];
     rows.forEach(r => wsData.push(
         sheetName === 'Customers'
             ? [r.name, r.contact, r.phone, r.fax, r.email, r.address, r.delivery, r.notes]
@@ -412,9 +414,6 @@ async function writeSheet(sheetName, rows) {
         ? [32,22,16,14,28,42,42,24]
         : [32,22,16,14,28,42,18,24];
     ws['!cols'] = colWidths.map(w => ({ wch: w }));
-
-    // Insert a title row above
-    XLSX.utils.sheet_add_aoa(ws, [[`COPRO — ${sheetName === 'Customers' ? 'Customer' : 'Supplier'} Directory`]], { origin: { r: 0, c: 0 } });
 
     wb.Sheets[sheetName] = ws;
     const out      = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
