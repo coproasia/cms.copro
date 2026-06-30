@@ -164,6 +164,7 @@
 <div class="file-bar" style="max-width:1200px;margin:0 auto 16px;">
     <label>📂 Directory File:</label>
     <button class="load-btn" onclick="loadDirectoryFile()">Load / Change Excel File</button>
+    <button class="load-btn" id="reconnectBtn" onclick="reconnectHandle()" style="display:none;background:#e67e22;">🔗 Reconnect File</button>
     <span id="fileStatusText2" style="font-size:12px;color:#666;">No file loaded — click to select your Copro Directory.xlsx</span>
 </div>
 
@@ -353,15 +354,38 @@ async function initHandle() {
     try {
         const h = await loadHandle('directoryFile');
         if (!h) return;
-        const perm    = await h.queryPermission({ mode: 'readwrite' });
-        const granted = perm === 'granted' ? 'granted' : await h.requestPermission({ mode: 'readwrite' });
-        if (granted === 'granted') {
+        const perm = await h.queryPermission({ mode: 'readwrite' });
+        if (perm === 'granted') {
             dirFileHandle = h;
             const f = await h.getFile();
             updateFileUI(f.name);
             await refreshAll();
+        } else {
+            // Browser requires a user gesture to re-grant permission — show reconnect button
+            window._pendingHandle = h;
+            document.getElementById('reconnectBtn').style.display = 'inline-block';
+            document.getElementById('fileStatusText2').textContent = '⚠️ Click "Reconnect File" to reload your directory.';
         }
     } catch(e) { /* silent */ }
+}
+
+async function reconnectHandle() {
+    try {
+        const h = window._pendingHandle;
+        if (!h) { loadDirectoryFile(); return; }
+        const granted = await h.requestPermission({ mode: 'readwrite' });
+        if (granted === 'granted') {
+            dirFileHandle = h;
+            const f = await h.getFile();
+            updateFileUI(f.name);
+            document.getElementById('reconnectBtn').style.display = 'none';
+            await refreshAll();
+        } else {
+            showMessage('Permission denied — please use Load / Change Excel File.', 'error');
+        }
+    } catch(e) {
+        showMessage('Could not reconnect: ' + e.message, 'error');
+    }
 }
 
 // ── Read from Excel ───────────────────────────────────────────────────────────
@@ -415,6 +439,7 @@ async function writeSheet(sheetName, rows) {
         : [32,22,16,14,28,42,18,24];
     ws['!cols'] = colWidths.map(w => ({ wch: w }));
 
+    if (!wb.SheetNames.includes(sheetName)) wb.SheetNames.push(sheetName);
     wb.Sheets[sheetName] = ws;
     const out      = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
     const writable = await dirFileHandle.createWritable();
