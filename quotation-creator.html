@@ -1406,14 +1406,14 @@ function generatePDF() {
     livePages.forEach(function(page, idx) {
         chain = chain.then(function() {
             return html2canvas(page, {
-                scale: 2,
+                scale: 3.5,
                 backgroundColor: '#ffffff',
                 logging: false,
                 useCORS: false,
                 allowTaint: false
             }).then(function(canvas) {
                 if (idx > 0) pdf.addPage();
-                var imgData = canvas.toDataURL('image/jpeg', 0.85);
+                var imgData = canvas.toDataURL('image/jpeg', 0.92);
                 pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
             });
         });
@@ -1538,7 +1538,7 @@ function generateCostRefPDF() {
     const JsPDF        = window.jspdf.jsPDF;
     const pdf          = new JsPDF({ unit:'mm', format:'a4', orientation:'portrait' });
 
-    html2canvas(el, { scale: 3, backgroundColor: '#ffffff', logging: false, useCORS: false, allowTaint: false })
+    html2canvas(el, { scale: 3.5, backgroundColor: '#ffffff', logging: false, useCORS: false, allowTaint: false })
         .then(canvas => {
             document.body.removeChild(container);
             const imgW  = 210;
