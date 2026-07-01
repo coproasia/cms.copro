@@ -776,7 +776,7 @@
         <div class="control-panel">
             <h1>📋 Copro Invoice-DO System</h1>
             <a href="index.html" class="back-to-dashboard">← Back to Dashboard</a>
-            
+
             <div class="status-message" id="statusMessage"></div>
 
             <!-- Tabs -->
@@ -819,8 +819,8 @@ Jalan PJS 5/30, 46150 Petaling Jaya Selangor Darul Ehsan, Malaysia.</textarea>
                 <div class="form-group">
                     <label>Invoice Number Format</label>
                     <div class="invoice-number-display">
-                        <p>Format: INDDMMYY[INIT]</p>
-                        <p>Example: IN260625SB</p>
+                        <p>Format: INDDMMYY[INIT]-[N]</p>
+                        <p>Example: IN300626GM-1</p>
                         <div class="number" id="invoiceNumberDisplay">IN-260625</div>
                     </div>
                 </div>
@@ -845,7 +845,7 @@ Jalan PJS 5/30, 46150 Petaling Jaya Selangor Darul Ehsan, Malaysia.</textarea>
 
                 <div class="form-group">
                     <label>Company Initials (Max 4 characters)</label>
-                    <input type="text" id="companyInitials" class="uppercase-input" maxlength="4" placeholder="e.g., SB" 
+                    <input type="text" id="companyInitials" class="uppercase-input" maxlength="4" placeholder="e.g., SB"
                            onchange="updateInvoiceNumber()"
                            oninput="this.value = this.value.toUpperCase(); updateInvoiceNumber();">
                     <div class="field-hint">Leave empty if not needed</div>
@@ -935,6 +935,23 @@ Jalan PJS 5/30, 46150 Petaling Jaya Selangor Darul Ehsan, Malaysia.</textarea>
             <div id="items" class="section-content">
                 <div class="items-section">
                     <h2>Invoice Items</h2>
+
+                    <!-- Pull items from a saved Quotation -->
+                    <div id="quoteDirStatus" style="margin-bottom:8px;padding:8px 12px;background:#eff6ff;border:1px solid #93c5fd;border-radius:5px;font-size:11px;color:#1e40af;display:none;">
+                        📊 Quotation File: <strong id="quoteDirFileName"></strong>
+                    </div>
+                    <div style="margin-bottom:10px;">
+                        <button class="action-btn" onclick="loadQuotationFile()" style="width:100%;padding:9px;background:#2563eb;color:white;font-size:12px;">📊 Load Quotation Excel</button>
+                    </div>
+                    <div class="form-group">
+                        <label>Pull Items From Quotation (QT No. or Customer Name)</label>
+                        <div style="display:flex;gap:8px;">
+                            <input type="text" id="pullQuoteSearch" class="uppercase-input" placeholder="e.g. QT300626GM-1 or CUSTOMER NAME" style="flex:1;">
+                            <button onclick="pullFromQuotation()" style="padding:9px 14px;background:#2563eb;color:white;border:none;border-radius:5px;cursor:pointer;font-weight:700;font-size:12px;white-space:nowrap;">📋 Pull</button>
+                        </div>
+                        <div class="field-hint">Loads items + selling price from that quotation's Cost Archive. Replaces the current item list below.</div>
+                    </div>
+
                     <div id="itemsList"></div>
                     <button class="add-item-btn" onclick="addItem()">➕ Add Item</button>
                 </div>
@@ -976,8 +993,8 @@ Jalan PJS 5/30, 46150 Petaling Jaya Selangor Darul Ehsan, Malaysia.</textarea>
 
             <!-- Action Buttons -->
             <div class="button-group">
-                <button class="action-btn record-btn" onclick="recordInvoice()">💾 Record</button>
-                <button class="action-btn print-btn" onclick="generatePDF()">📄 Invoice PDF</button>
+                <button class="action-btn print-btn" onclick="generatePDF()">📄 Step 1: Invoice PDF</button>
+                <button class="action-btn record-btn" onclick="recordInvoice()">📝 Step 2: Record Invoice</button>
             </div>
 
             <div class="button-group">
@@ -1037,41 +1054,55 @@ Jalan PJS 5/30, 46150 Petaling Jaya Selangor Darul Ehsan, Malaysia.</textarea>
             }
         });
 
-        // Generate invoice number
+        // Generate invoice number (daily counter -1, -2... same logic as Quotation Creator)
+        function getINCounter() {
+            const now     = new Date();
+            const d       = String(now.getDate()).padStart(2, '0');
+            const m       = String(now.getMonth() + 1).padStart(2, '0');
+            const y       = String(now.getFullYear()).slice(-2);
+            const dateKey = `${d}${m}${y}`;
+            const stored  = JSON.parse(localStorage.getItem('copro_in_daily') || '{}');
+            const count   = (stored.date === dateKey) ? (stored.count || 0) + 1 : 1;
+            return { dateKey, count };
+        }
+
         function updateInvoiceNumber() {
-            const now = new Date();
-            const day = String(now.getDate()).padStart(2, '0');
-            const month = String(now.getMonth() + 1).padStart(2, '0');
-            const year = String(now.getFullYear()).slice(-2);
+            const { dateKey, count } = getINCounter();
             const initials = document.getElementById('companyInitials').value.toUpperCase();
-            
-            let invoiceNumber = `IN${day}${month}${year}`;
-            if (initials) {
-                invoiceNumber += initials;
-            }
-            
-            document.getElementById('invoiceNumberDisplay').textContent = invoiceNumber;
+            document.getElementById('invoiceNumberDisplay').textContent = `IN${dateKey}${initials}-${count}`;
             renderInvoice();
+        }
+
+        function incrementInvoiceCounter() {
+            const now     = new Date();
+            const d       = String(now.getDate()).padStart(2, '0');
+            const m       = String(now.getMonth() + 1).padStart(2, '0');
+            const y       = String(now.getFullYear()).slice(-2);
+            const dateKey = `${d}${m}${y}`;
+            const stored  = JSON.parse(localStorage.getItem('copro_in_daily') || '{}');
+            const count   = (stored.date === dateKey) ? (stored.count || 0) + 1 : 1;
+            localStorage.setItem('copro_in_daily', JSON.stringify({ date: dateKey, count }));
+            updateInvoiceNumber();
         }
 
         // Toggle same address
         function toggleSameAddress() {
             const isSame = document.getElementById('sameAddress').checked;
             const deliveryFields = document.getElementById('deliveryAddressFields');
-            
+
             if (isSame) {
                 deliveryFields.style.display = 'none';
             } else {
                 deliveryFields.style.display = 'block';
             }
-            
+
             if (isSame) {
                 document.getElementById('deliveryAddress').value = document.getElementById('customerAddress').value;
                 document.getElementById('deliveryContact').value = document.getElementById('contactPerson').value;
                 document.getElementById('deliveryPhone').value = document.getElementById('phone').value;
                 document.getElementById('deliveryFax').value = document.getElementById('fax').value;
             }
-            
+
             renderInvoice();
         }
 
@@ -1109,7 +1140,7 @@ Jalan PJS 5/30, 46150 Petaling Jaya Selangor Darul Ehsan, Malaysia.</textarea>
         function renderItems() {
             const itemsList = document.getElementById('itemsList');
             itemsList.innerHTML = '';
-            
+
             items.forEach((item, index) => {
                 const itemRow = document.createElement('div');
                 itemRow.className = 'item-row';
@@ -1121,24 +1152,24 @@ Jalan PJS 5/30, 46150 Petaling Jaya Selangor Darul Ehsan, Malaysia.</textarea>
                     </div>
                     <div class="form-group">
                         <label>Item Description</label>
-                        <textarea placeholder="Product name, model, specifications..." 
+                        <textarea placeholder="Product name, model, specifications..."
                                   onchange="updateItem(${item.id}, 'description', this.value)"
                                   style="min-height: 100px; font-size: 12px;">${item.description}</textarea>
                     </div>
                     <div class="qty-price-row">
                         <div class="form-group">
                             <label>Quantity</label>
-                            <input type="number" step="0.01" value="${item.qty}" 
+                            <input type="number" step="0.01" value="${item.qty}"
                                    onchange="updateItem(${item.id}, 'qty', this.value)">
                         </div>
                         <div class="form-group">
                             <label>Unit (e.g., UNIT)</label>
-                            <input type="text" value="${item.uom}" 
+                            <input type="text" value="${item.uom}"
                                    onchange="updateItem(${item.id}, 'uom', this.value)">
                         </div>
                         <div class="form-group">
                             <label>Price/Unit (${document.getElementById('currency').value || 'RM'})</label>
-                            <input type="number" step="0.01" value="${item.price}" 
+                            <input type="number" step="0.01" value="${item.price}"
                                    onchange="updateItem(${item.id}, 'price', this.value)">
                         </div>
                     </div>
@@ -1154,13 +1185,13 @@ Jalan PJS 5/30, 46150 Petaling Jaya Selangor Darul Ehsan, Malaysia.</textarea>
             const contactPerson = document.getElementById('contactPerson').value || 'Contact';
             const phone = document.getElementById('phone').value || 'Tel';
             const fax = document.getElementById('fax').value || '';
-            
+
             const isSame = document.getElementById('sameAddress').checked;
             const deliveryAddress = isSame ? customerAddress : document.getElementById('deliveryAddress').value;
             const deliveryContact = isSame ? contactPerson : document.getElementById('deliveryContact').value;
             const deliveryPhone = isSame ? phone : document.getElementById('deliveryPhone').value;
             const deliveryFax = isSame ? fax : document.getElementById('deliveryFax').value;
-            
+
             const invoiceNumber = document.getElementById('invoiceNumberDisplay').textContent;
             const currency = document.getElementById('currency').value || 'RM';
             const paymentTerms = document.getElementById('paymentTerms').value || 'C.O.D';
@@ -1168,17 +1199,17 @@ Jalan PJS 5/30, 46150 Petaling Jaya Selangor Darul Ehsan, Malaysia.</textarea>
             const companyAddress = document.getElementById('companyAddress').value || 'Address';
             const poReference = document.getElementById('poReference').value || '';
             const doReference = document.getElementById('doReference').value || '';
-            
+
             // Calculate totals
             let subtotal = 0;
             items.forEach(item => {
                 subtotal += (item.qty * item.price);
             });
-            
+
             // Create rows for items table (minimum 8 rows per page to fit on single A4)
             const itemsPerPage = 8;
             let itemRows = '';
-            
+
             items.forEach((item, index) => {
                 const amount = item.qty * item.price;
                 itemRows += `
@@ -1192,7 +1223,7 @@ Jalan PJS 5/30, 46150 Petaling Jaya Selangor Darul Ehsan, Malaysia.</textarea>
                     </tr>
                 `;
             });
-            
+
             // Fill remaining rows to reach minimum of 8 rows
             const remainingRows = Math.max(0, itemsPerPage - items.length);
             for (let i = 0; i < remainingRows; i++) {
@@ -1207,7 +1238,7 @@ Jalan PJS 5/30, 46150 Petaling Jaya Selangor Darul Ehsan, Malaysia.</textarea>
                     </tr>
                 `;
             }
-            
+
             const invoiceHTML = `
                 <div class="invoice-header">
                     <div class="invoice-header-left">
@@ -1323,7 +1354,7 @@ Jalan PJS 5/30, 46150 Petaling Jaya Selangor Darul Ehsan, Malaysia.</textarea>
                     <div class="footer-section">
                         <h4>Terms & Conditions:</h4>
                         <ul class="terms-list">
-                            ${document.getElementById('termsConditions').value.split('\n').filter(t => t.trim()).map(term => 
+                            ${document.getElementById('termsConditions').value.split('\n').filter(t => t.trim()).map(term =>
                                 `<li>${term.trim()}</li>`
                             ).join('')}
                         </ul>
@@ -1336,7 +1367,7 @@ Jalan PJS 5/30, 46150 Petaling Jaya Selangor Darul Ehsan, Malaysia.</textarea>
             `;
 
             document.getElementById('invoicePreview').innerHTML = invoiceHTML;
-            
+
             // Set logo if exists
             if (logoBase64) {
                 const logoElement = document.getElementById('invoicePreview').querySelector('.invoice-logo');
@@ -1366,7 +1397,7 @@ Jalan PJS 5/30, 46150 Petaling Jaya Selangor Darul Ehsan, Malaysia.</textarea>
         // Load settings from localStorage
         function loadSettings() {
             const settings = JSON.parse(localStorage.getItem('invoiceSettings') || '{}');
-            
+
             if (settings.bankName) document.getElementById('bankName').value = settings.bankName;
             if (settings.accountName) document.getElementById('accountName').value = settings.accountName;
             if (settings.bankAccount) document.getElementById('bankAccount').value = settings.bankAccount;
@@ -1390,7 +1421,7 @@ Jalan PJS 5/30, 46150 Petaling Jaya Selangor Darul Ehsan, Malaysia.</textarea>
         // Load company name and address lock state from localStorage
         function loadCompanyLockState() {
             const companyLocks = JSON.parse(localStorage.getItem('companyLocks') || '{}');
-            
+
             // Load Company Name lock state
             if (companyLocks.nameLocked) {
                 document.getElementById('companyName').disabled = true;
@@ -1400,7 +1431,7 @@ Jalan PJS 5/30, 46150 Petaling Jaya Selangor Darul Ehsan, Malaysia.</textarea>
                     document.getElementById('companyName').value = companyLocks.nameValue;
                 }
             }
-            
+
             // Load Company Address lock state
             if (companyLocks.addressLocked) {
                 document.getElementById('companyAddress').disabled = true;
@@ -1417,27 +1448,27 @@ Jalan PJS 5/30, 46150 Petaling Jaya Selangor Darul Ehsan, Malaysia.</textarea>
             const field = document.getElementById(fieldId);
             const button = document.getElementById(fieldId + 'LockBtn');
             const companyLocks = JSON.parse(localStorage.getItem('companyLocks') || '{}');
-            
+
             if (field.disabled) {
                 // Unlock the field
                 field.disabled = false;
                 button.classList.remove('locked');
                 button.textContent = '🔓 Unlock';
-                
+
                 // Clear lock state
                 if (fieldId === 'companyName') {
                     companyLocks.nameLocked = false;
                 } else if (fieldId === 'companyAddress') {
                     companyLocks.addressLocked = false;
                 }
-                
+
                 showMessage(`${fieldId === 'companyName' ? 'Company Name' : 'Company Address'} unlocked for editing`, 'success');
             } else {
                 // Lock the field
                 field.disabled = true;
                 button.classList.add('locked');
                 button.textContent = '🔒 Locked';
-                
+
                 // Save lock state and value
                 if (fieldId === 'companyName') {
                     companyLocks.nameLocked = true;
@@ -1446,10 +1477,10 @@ Jalan PJS 5/30, 46150 Petaling Jaya Selangor Darul Ehsan, Malaysia.</textarea>
                     companyLocks.addressLocked = true;
                     companyLocks.addressValue = field.value;
                 }
-                
+
                 showMessage(`${fieldId === 'companyName' ? 'Company Name' : 'Company Address'} locked permanently`, 'success');
             }
-            
+
             localStorage.setItem('companyLocks', JSON.stringify(companyLocks));
             renderInvoice();
         }
@@ -1464,8 +1495,8 @@ Jalan PJS 5/30, 46150 Petaling Jaya Selangor Darul Ehsan, Malaysia.</textarea>
             const invoiceNumber = document.getElementById('invoiceNumberDisplay').textContent;
             const customerName = document.getElementById('customerName').value.trim();
             const today = new Date();
-            const dateStr = String(today.getDate()).padStart(2, '0') + '-' + 
-                           String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+            const dateStr = String(today.getDate()).padStart(2, '0') + '-' +
+                           String(today.getMonth() + 1).padStart(2, '0') + '-' +
                            today.getFullYear();
             const totalAmount = items.reduce((sum, item) => sum + (item.qty * item.price), 0);
             const partyCode = customerName.substring(0, 6).toUpperCase();
@@ -1489,9 +1520,9 @@ Jalan PJS 5/30, 46150 Petaling Jaya Selangor Darul Ehsan, Malaysia.</textarea>
             }
 
             // Check if invoice already exists in storage
-            const invoiceExists = monthInvoices.some(inv => 
-                inv.invoiceNumber === invoiceNumber && 
-                inv.date === dateStr && 
+            const invoiceExists = monthInvoices.some(inv =>
+                inv.invoiceNumber === invoiceNumber &&
+                inv.date === dateStr &&
                 inv.amount === totalAmount
             );
 
@@ -1516,14 +1547,9 @@ Jalan PJS 5/30, 46150 Petaling Jaya Selangor Darul Ehsan, Malaysia.</textarea>
             sessionStorage.setItem('lastInvoiceRecordedId', invoiceId);
 
             showMessage(`✅ Successfully recorded - Invoice ${invoiceNumber} (${partyCode} - RM ${totalAmount.toFixed(2)})`, 'success');
-            
-            // Clear form for next invoice
-            document.getElementById('customerName').value = '';
-            items = [];
-            addItem();
-            renderItems();
-            renderInvoice();
-            updateInvoiceNumber();
+
+            // Advance invoice number only — form stays intact for review or amendments
+            incrementInvoiceCounter();
         }
 
         // Generate PDF
@@ -1537,31 +1563,31 @@ Jalan PJS 5/30, 46150 Petaling Jaya Selangor Darul Ehsan, Malaysia.</textarea>
             const customerName = document.getElementById('customerName').value.trim().replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
             const firstItemDesc = items[0].description.trim().split(/\s+/).slice(0, 2).join(' ').replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
             const fileName = `${customerName}-${firstItemDesc}-COPRO-${invoiceNumber}`;
-            
+
             const element = document.getElementById('invoicePreview');
-            
+
             // Create a clone to work with
             const clonedElement = element.cloneNode(true);
-            
+
             // Remove fixed height to allow natural content flow
             clonedElement.style.height = 'auto';
             clonedElement.style.width = '210mm';
             clonedElement.style.padding = '25px 20px 15px 20px';
-            
+
             // Use html2pdf with optimized settings for single-page PDFs
             const opt = {
                 margin: 0,
                 filename: `${fileName}.pdf`,
                 image: { type: 'png' },
-                html2canvas: { 
-                    scale: 3, 
-                    useCORS: true, 
+                html2canvas: {
+                    scale: 3,
+                    useCORS: true,
                     backgroundColor: '#ffffff',
                     allowTaint: true
                 },
-                jsPDF: { 
-                    unit: 'mm', 
-                    format: 'a4', 
+                jsPDF: {
+                    unit: 'mm',
+                    format: 'a4',
                     orientation: 'portrait'
                 },
                 pagebreak: { mode: 'css', avoid: 'tr' }
@@ -1603,23 +1629,23 @@ Jalan PJS 5/30, 46150 Petaling Jaya Selangor Darul Ehsan, Malaysia.</textarea>
             const fileName = `${customerName}-${firstItemDesc}-COPRO-${doNumber}`;
             const currentDate = new Date().toLocaleDateString('en-MY');
             const element = document.getElementById('invoicePreview');
-            
+
             // Create a clone to work with
             const clonedElement = element.cloneNode(true);
-            
+
             // Change title to DELIVERY ORDER in blue
             const titleElement = clonedElement.querySelector('.invoice-title h1');
             if (titleElement) {
                 titleElement.textContent = 'DELIVERY ORDER';
                 titleElement.style.color = '#2563eb';
             }
-            
+
             // Change Invoice No to DO No and update date
             const invoiceInfoRows = clonedElement.querySelectorAll('.invoice-info-row');
             invoiceInfoRows.forEach((row, index) => {
                 const label = row.querySelector('.invoice-info-label');
                 const value = row.querySelector('.invoice-info-value');
-                
+
                 if (label && label.textContent.includes('Invoice No')) {
                     label.textContent = 'DO No:';
                     value.textContent = doNumber;
@@ -1628,15 +1654,15 @@ Jalan PJS 5/30, 46150 Petaling Jaya Selangor Darul Ehsan, Malaysia.</textarea>
                     value.textContent = currentDate;
                 }
             });
-            
+
             // Hide pricing columns in table
             const headerCells = clonedElement.querySelectorAll('.items-table th');
             const dataCells = clonedElement.querySelectorAll('.items-table td');
-            
+
             // Hide Unit Price and Total Price column headers (columns 5 and 6)
             if (headerCells.length >= 5) headerCells[4].style.display = 'none'; // Unit Price
             if (headerCells.length >= 6) headerCells[5].style.display = 'none'; // Total Price
-            
+
             // Hide pricing data cells
             dataCells.forEach((cell, index) => {
                 const columnIndex = index % 6;
@@ -1644,19 +1670,19 @@ Jalan PJS 5/30, 46150 Petaling Jaya Selangor Darul Ehsan, Malaysia.</textarea>
                     cell.style.display = 'none';
                 }
             });
-            
+
             // Hide total section
             const totalSection = clonedElement.querySelector('.total-section');
             if (totalSection) totalSection.style.display = 'none';
-            
+
             // Hide bank details
             const bankDetailsSection = clonedElement.querySelector('.footer-section');
             if (bankDetailsSection) bankDetailsSection.style.display = 'none';
-            
+
             // Hide terms & conditions
             const footerSections = clonedElement.querySelectorAll('.footer-section');
             if (footerSections.length > 1) footerSections[1].style.display = 'none';
-            
+
             // Add signatory section with improved formatting
             const footer = clonedElement.querySelector('.invoice-footer');
             if (footer) {
@@ -1677,26 +1703,26 @@ Jalan PJS 5/30, 46150 Petaling Jaya Selangor Darul Ehsan, Malaysia.</textarea>
                 `;
                 footer.insertAdjacentHTML('beforeend', signatoryHTML);
             }
-            
+
             // Remove fixed height to allow natural content flow
             clonedElement.style.height = 'auto';
             clonedElement.style.width = '210mm';
             clonedElement.style.padding = '25px 20px 15px 20px';
-            
+
             // Use html2pdf with optimized settings
             const opt = {
                 margin: 0,
                 filename: `${fileName}.pdf`,
                 image: { type: 'png' },
-                html2canvas: { 
-                    scale: 3, 
-                    useCORS: true, 
+                html2canvas: {
+                    scale: 3,
+                    useCORS: true,
                     backgroundColor: '#ffffff',
                     allowTaint: true
                 },
-                jsPDF: { 
-                    unit: 'mm', 
-                    format: 'a4', 
+                jsPDF: {
+                    unit: 'mm',
+                    format: 'a4',
                     orientation: 'portrait'
                 },
                 pagebreak: { mode: 'css', avoid: 'tr' }
@@ -1730,8 +1756,8 @@ Jalan PJS 5/30, 46150 Petaling Jaya Selangor Darul Ehsan, Malaysia.</textarea>
 
         // Real-time preview updates
         document.addEventListener('change', function(e) {
-            if (e.target.id.includes('customer') || 
-                e.target.id.includes('delivery') || 
+            if (e.target.id.includes('customer') ||
+                e.target.id.includes('delivery') ||
                 e.target.id.includes('contact') ||
                 e.target.id.includes('phone') ||
                 e.target.id.includes('fax') ||
@@ -1901,6 +1927,142 @@ Jalan PJS 5/30, 46150 Petaling Jaya Selangor Darul Ehsan, Malaysia.</textarea>
 
             } catch(e) {
                 showMessage('Error reading directory: ' + e.message, 'error');
+            }
+        }
+
+        // ─── Pull Items From a Saved Quotation ─────────────────────────────────────
+        let quotationExcelHandle = null;
+
+        async function initQuotationHandle() {
+            try {
+                const h = await loadHandle('pullQuotationExcel');
+                if (h) {
+                    const perm = await h.queryPermission({ mode: 'read' });
+                    const granted = perm === 'granted' ? 'granted' : await h.requestPermission({ mode: 'read' });
+                    if (granted === 'granted') {
+                        quotationExcelHandle = h;
+                        const f = await h.getFile();
+                        document.getElementById('quoteDirFileName').textContent = f.name;
+                        document.getElementById('quoteDirStatus').style.display = 'block';
+                    }
+                }
+            } catch(e) { /* silent */ }
+        }
+        window.addEventListener('load', initQuotationHandle);
+
+        async function loadQuotationFile() {
+            if (!window.showOpenFilePicker) {
+                showMessage('Use Edge or Chrome for file access.', 'error'); return;
+            }
+            try {
+                const [fh] = await window.showOpenFilePicker({
+                    types: [{ description: 'Excel Files', accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } }]
+                });
+                quotationExcelHandle = fh;
+                await saveHandle('pullQuotationExcel', fh);
+                const file = await fh.getFile();
+                document.getElementById('quoteDirFileName').textContent = file.name;
+                document.getElementById('quoteDirStatus').style.display = 'block';
+                showMessage('✅ Quotation Excel loaded: ' + file.name, 'success');
+            } catch(e) {
+                if (e.name !== 'AbortError') showMessage('Error: ' + e.message, 'error');
+            }
+        }
+
+        function applyQuotationItems(qtNumber, rows) {
+            items = rows.map(r => ({
+                id: Date.now() + Math.random(),
+                description: r.desc,
+                qty: r.qty,
+                price: r.sellUnit,
+                uom: r.uom || 'UNIT'
+            }));
+            renderItems();
+            renderInvoice();
+            showMessage(`✅ Pulled ${rows.length} item(s) from ${qtNumber}`, 'success');
+        }
+
+        async function pullFromQuotation() {
+            const term = document.getElementById('pullQuoteSearch').value.trim();
+            if (!term) { showMessage('Type a QT number or customer name first.', 'error'); return; }
+            if (!quotationExcelHandle) { showMessage('⚠️ Load your Quotation Excel first.', 'error'); return; }
+
+            const old = document.getElementById('quotePickerDropdown');
+            if (old) old.remove();
+
+            try {
+                const file = await quotationExcelHandle.getFile();
+                const ab   = await file.arrayBuffer();
+                const wb   = XLSX.read(ab, { type: 'array' });
+                const ws   = wb.Sheets['Cost Archive'];
+                if (!ws) { showMessage('No "Cost Archive" sheet found in this file.', 'error'); return; }
+
+                const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+                const get   = (r, c) => String((ws[XLSX.utils.encode_cell({r, c})] || {}).v || '');
+
+                // Columns (Cost Archive sheet): A=Date B=QT No C=Customer D=Item E=Desc F=Qty G=UOM H=Cost/Unit I=Sell Price/Unit J=Margin
+                const allRows = [];
+                for (let r = 2; r <= range.e.r; r++) {
+                    const qtNo = get(r, 1);
+                    if (!qtNo) continue;
+                    allRows.push({
+                        date: get(r, 0), qtNumber: qtNo, customer: get(r, 2),
+                        desc: get(r, 4), qty: parseFloat(get(r, 5)) || 0,
+                        uom: get(r, 6), sellUnit: parseFloat(get(r, 8)) || 0
+                    });
+                }
+
+                const termLower    = term.toLowerCase();
+                const matchedRows  = allRows.filter(r =>
+                    r.qtNumber.toLowerCase().includes(termLower) || r.customer.toLowerCase().includes(termLower)
+                );
+
+                if (matchedRows.length === 0) { showMessage('No quotation found matching "' + term + '".', 'error'); return; }
+
+                // Group matched rows by QT number (each quotation has one row per item)
+                const byQt = {};
+                matchedRows.forEach(r => {
+                    if (!byQt[r.qtNumber]) byQt[r.qtNumber] = { qtNumber: r.qtNumber, customer: r.customer, date: r.date, rows: [] };
+                    byQt[r.qtNumber].rows.push(r);
+                });
+                const groups = Object.values(byQt);
+
+                if (groups.length === 1) { applyQuotationItems(groups[0].qtNumber, groups[0].rows); return; }
+
+                // Multiple quotations matched — show inline picker below the Pull button
+                const btn    = document.querySelector('button[onclick="pullFromQuotation()"]');
+                const picker = document.createElement('div');
+                picker.id    = 'quotePickerDropdown';
+                picker.style.cssText = `position:absolute;z-index:9999;background:white;border:2px solid #2563eb;
+                    border-radius:7px;box-shadow:0 8px 24px rgba(0,0,0,0.18);min-width:320px;overflow:hidden;`;
+
+                const title = document.createElement('div');
+                title.textContent  = `${groups.length} quotations — pick one:`;
+                title.style.cssText = 'padding:8px 12px;font-size:11px;font-weight:700;color:#2563eb;background:#eff6ff;border-bottom:1px solid #bfdbfe;';
+                picker.appendChild(title);
+
+                groups.forEach(g => {
+                    const item = document.createElement('div');
+                    item.textContent  = `${g.qtNumber} — ${g.customer} (${g.date})`;
+                    item.style.cssText = `padding:9px 14px;font-size:13px;cursor:pointer;border-bottom:1px solid #f3f4f6;`;
+                    item.onmouseenter = () => item.style.background = '#eff6ff';
+                    item.onmouseleave = () => item.style.background = '';
+                    item.onclick = () => { picker.remove(); applyQuotationItems(g.qtNumber, g.rows); };
+                    picker.appendChild(item);
+                });
+
+                btn.style.position = 'relative';
+                btn.parentNode.style.position = 'relative';
+                btn.parentNode.appendChild(picker);
+
+                setTimeout(() => {
+                    document.addEventListener('click', function closePicker(e) {
+                        if (!picker.contains(e.target)) { picker.remove(); document.removeEventListener('click', closePicker); }
+                    });
+                }, 100);
+
+            } catch(e) {
+                showMessage('Error reading quotation file: ' + e.message, 'error');
             }
         }
     </script>
