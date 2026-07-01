@@ -826,10 +826,21 @@ Jalan PJS 5/30, 46150 Petaling Jaya Selangor Darul Ehsan, Malaysia.</textarea>
                 </div>
 
                 <h2>Bill To (Customer)</h2>
+                <!-- Customer Directory loader -->
+                <div id="custDirStatus" style="margin-bottom:8px;padding:8px 12px;background:#f5f3ff;border:1px solid #c4b5fd;border-radius:5px;font-size:11px;color:#5b21b6;display:none;">
+                    👥 Directory: <strong id="custDirFileName"></strong>
+                </div>
+                <div style="margin-bottom:10px;">
+                    <button class="action-btn" onclick="loadCustomerDirectory()" style="width:100%;padding:9px;background:#7c3aed;color:white;font-size:12px;">👥 Load Customer Directory Excel</button>
+                </div>
                 <div class="form-group">
                     <label>Customer Name</label>
-                    <input type="text" id="customerName" class="uppercase-input" placeholder="COPRO ASIA RESOURCES" value="COPRO ASIA RESOURCES"
-                           oninput="this.value = this.value.toUpperCase()">
+                    <div style="display:flex;gap:8px;">
+                        <input type="text" id="customerName" class="uppercase-input" placeholder="COPRO ASIA RESOURCES" value="COPRO ASIA RESOURCES"
+                               oninput="this.value = this.value.toUpperCase()" style="flex:1;">
+                        <button onclick="populateCustomer()" style="padding:9px 14px;background:#7c3aed;color:white;border:none;border-radius:5px;cursor:pointer;font-weight:700;font-size:12px;white-space:nowrap;">🔍 Populate</button>
+                    </div>
+                    <div class="field-hint">Type name then click Populate to auto-fill from Customer Directory</div>
                 </div>
 
                 <div class="form-group">
@@ -1742,6 +1753,156 @@ Jalan PJS 5/30, 46150 Petaling Jaya Selangor Darul Ehsan, Malaysia.</textarea>
         document.getElementById('currency').addEventListener('input', function() {
             renderInvoice();
         });
+
+        // ─── Customer Directory Load & Populate ───────────────────────────────────
+        let customerDirHandle = null;
+
+        function openDB() {
+            return new Promise((res, rej) => {
+                const req = indexedDB.open('CoproCMS', 1);
+                req.onupgradeneeded = e => e.target.result.createObjectStore('handles');
+                req.onsuccess = e => res(e.target.result);
+                req.onerror   = e => rej(e);
+            });
+        }
+        async function saveHandle(key, handle) {
+            const db = await openDB();
+            return new Promise((res, rej) => {
+                const tx = db.transaction('handles', 'readwrite');
+                tx.objectStore('handles').put(handle, key);
+                tx.oncomplete = res; tx.onerror = rej;
+            });
+        }
+        async function loadHandle(key) {
+            const db = await openDB();
+            return new Promise((res, rej) => {
+                const tx  = db.transaction('handles', 'readonly');
+                const req = tx.objectStore('handles').get(key);
+                req.onsuccess = () => res(req.result);
+                req.onerror   = rej;
+            });
+        }
+
+        async function initHandles() {
+            try {
+                const h = await loadHandle('directoryFile');
+                if (h) {
+                    const perm = await h.queryPermission({ mode: 'readwrite' });
+                    const granted = perm === 'granted' ? 'granted' : await h.requestPermission({ mode: 'readwrite' });
+                    if (granted === 'granted') {
+                        customerDirHandle = h;
+                        const f = await h.getFile();
+                        document.getElementById('custDirFileName').textContent = f.name;
+                        document.getElementById('custDirStatus').style.display = 'block';
+                    }
+                }
+            } catch(e) { /* silent */ }
+        }
+        window.addEventListener('load', initHandles);
+
+        async function loadCustomerDirectory() {
+            if (!window.showOpenFilePicker) {
+                showMessage('Use Edge or Chrome for file access.', 'error'); return;
+            }
+            try {
+                const [fh] = await window.showOpenFilePicker({
+                    types: [{ description: 'Excel Files', accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } }]
+                });
+                customerDirHandle = fh;
+                await saveHandle('directoryFile', fh);
+                const file = await fh.getFile();
+                document.getElementById('custDirFileName').textContent = file.name;
+                document.getElementById('custDirStatus').style.display = 'block';
+                showMessage('✅ Customer Directory loaded: ' + file.name, 'success');
+            } catch(e) {
+                if (e.name !== 'AbortError') showMessage('Error: ' + e.message, 'error');
+            }
+        }
+
+        function fillCustomer(match) {
+            document.getElementById('customerName').value    = match.name;
+            document.getElementById('contactPerson').value   = match.contact;
+            document.getElementById('phone').value           = match.phone;
+            document.getElementById('fax').value             = match.fax;
+            document.getElementById('customerAddress').value = match.address;
+            if (match.delivery) {
+                document.getElementById('sameAddress').checked = false;
+                toggleSameAddress();
+                document.getElementById('deliveryAddress').value = match.delivery;
+            }
+            renderInvoice();
+            showMessage('✅ Customer populated!', 'success');
+        }
+
+        async function populateCustomer() {
+            const name = document.getElementById('customerName').value.trim();
+            if (!name) { showMessage('Type a customer name first, then click Populate.', 'error'); return; }
+            if (!customerDirHandle) { showMessage('⚠️ Load your Customer Directory Excel first.', 'error'); return; }
+
+            const old = document.getElementById('customerPickerDropdown');
+            if (old) old.remove();
+
+            try {
+                const file = await customerDirHandle.getFile();
+                const ab   = await file.arrayBuffer();
+                const wb   = XLSX.read(ab, { type: 'array' });
+                const ws   = wb.Sheets['Customers'];
+                if (!ws) { showMessage('No "Customers" sheet found in directory.', 'error'); return; }
+
+                const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+                const get   = (r, c) => String((ws[XLSX.utils.encode_cell({r, c})] || {}).v || '');
+
+                const matches = [];
+                for (let r = 1; r <= range.e.r; r++) {
+                    if (get(r, 0).toLowerCase().includes(name.toLowerCase())) {
+                        matches.push({
+                            name:     get(r, 0), contact: get(r, 1),
+                            phone:    get(r, 2), fax:     get(r, 3),
+                            address:  get(r, 5), delivery:get(r, 6)
+                        });
+                    }
+                }
+
+                if (matches.length === 0) { showMessage('Customer "' + name + '" not found in directory.', 'error'); return; }
+
+                if (matches.length === 1) { fillCustomer(matches[0]); return; }
+
+                const btn     = document.querySelector('button[onclick="populateCustomer()"]');
+                const picker  = document.createElement('div');
+                picker.id     = 'customerPickerDropdown';
+                picker.style.cssText = `position:absolute;z-index:9999;background:white;border:2px solid #7c3aed;
+                    border-radius:7px;box-shadow:0 8px 24px rgba(0,0,0,0.18);min-width:280px;overflow:hidden;`;
+
+                const title = document.createElement('div');
+                title.textContent  = `${matches.length} matches — pick one:`;
+                title.style.cssText = 'padding:8px 12px;font-size:11px;font-weight:700;color:#7c3aed;background:#f5f3ff;border-bottom:1px solid #e9d5ff;';
+                picker.appendChild(title);
+
+                matches.forEach((m, i) => {
+                    const item = document.createElement('div');
+                    item.textContent  = m.name;
+                    item.style.cssText = `padding:9px 14px;font-size:13px;cursor:pointer;border-bottom:1px solid #f3f4f6;
+                        transition:background 0.15s;`;
+                    item.onmouseenter = () => item.style.background = '#f5f3ff';
+                    item.onmouseleave = () => item.style.background = '';
+                    item.onclick = () => { picker.remove(); fillCustomer(m); };
+                    picker.appendChild(item);
+                });
+
+                btn.style.position = 'relative';
+                btn.parentNode.style.position = 'relative';
+                btn.parentNode.appendChild(picker);
+
+                setTimeout(() => {
+                    document.addEventListener('click', function closePicker(e) {
+                        if (!picker.contains(e.target)) { picker.remove(); document.removeEventListener('click', closePicker); }
+                    });
+                }, 100);
+
+            } catch(e) {
+                showMessage('Error reading directory: ' + e.message, 'error');
+            }
+        }
     </script>
 </body>
 </html>
