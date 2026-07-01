@@ -420,9 +420,20 @@
             <!-- Payment Out Tab -->
             <div id="payment-out" class="tab-content">
                 <h2>Record Payment Out</h2>
+                <!-- Supplier Directory loader -->
+                <div id="suppDirStatus" style="margin-bottom:8px;padding:8px 12px;background:#f5f3ff;border:1px solid #c4b5fd;border-radius:5px;font-size:11px;color:#5b21b6;display:none;">
+                    🏭 Directory: <strong id="suppDirFileName"></strong>
+                </div>
+                <div style="margin-bottom:10px;">
+                    <button type="button" onclick="loadSupplierDirectory()" style="width:100%;padding:9px;background:#7c3aed;color:white;border:none;border-radius:5px;cursor:pointer;font-weight:700;font-size:12px;">🏭 Load Supplier Directory Excel</button>
+                </div>
                 <div class="form-group">
                     <label>Supplier Name (First 6 letters used)</label>
-                    <input type="text" id="supplierName" placeholder="e.g., ABC Industries">
+                    <div style="display:flex;gap:8px;">
+                        <input type="text" id="supplierName" placeholder="e.g., ABC Industries" style="flex:1;">
+                        <button type="button" onclick="populateSupplierPO()" style="padding:9px 14px;background:#7c3aed;color:white;border:none;border-radius:5px;cursor:pointer;font-weight:700;font-size:12px;white-space:nowrap;">🔍 Populate</button>
+                    </div>
+                    <div class="field-hint" style="color:#666;font-size:12px;margin-top:5px;">Type supplier name then click Populate to auto-fill from Directory (same directory used in PO/Invoice)</div>
                 </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                     <div class="form-group">
@@ -1391,6 +1402,142 @@
 
         function formatDateDisplay(date) {
             return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+        }
+
+        // ─── Supplier Directory (shared with PO/Invoice) ──────────────────────
+        function openDB() {
+            return new Promise((res, rej) => {
+                const req = indexedDB.open('CoproCMS', 1);
+                req.onupgradeneeded = e => e.target.result.createObjectStore('handles');
+                req.onsuccess = e => res(e.target.result);
+                req.onerror   = e => rej(e);
+            });
+        }
+        async function saveHandle(key, handle) {
+            const db = await openDB();
+            return new Promise((res, rej) => {
+                const tx = db.transaction('handles', 'readwrite');
+                tx.objectStore('handles').put(handle, key);
+                tx.oncomplete = res; tx.onerror = rej;
+            });
+        }
+        async function loadHandleFromDB(key) {
+            const db = await openDB();
+            return new Promise((res, rej) => {
+                const tx  = db.transaction('handles', 'readonly');
+                const req = tx.objectStore('handles').get(key);
+                req.onsuccess = () => res(req.result);
+                req.onerror   = rej;
+            });
+        }
+
+        let supplierDirHandle = null;
+
+        async function initSupplierHandle() {
+            try {
+                const h = await loadHandleFromDB('directoryFile');
+                if (!h) return;
+                const perm    = await h.queryPermission({ mode: 'readwrite' });
+                const granted = perm === 'granted' ? 'granted' : await h.requestPermission({ mode: 'readwrite' });
+                if (granted === 'granted') {
+                    supplierDirHandle = h;
+                    const f = await h.getFile();
+                    document.getElementById('suppDirFileName').textContent = f.name;
+                    document.getElementById('suppDirStatus').style.display = 'block';
+                }
+            } catch(e) { /* silent */ }
+        }
+        window.addEventListener('load', initSupplierHandle);
+
+        async function loadSupplierDirectory() {
+            if (!window.showOpenFilePicker) {
+                showMessage('Use Edge or Chrome for file access.', 'error'); return;
+            }
+            try {
+                const [fh] = await window.showOpenFilePicker({
+                    types: [{ description: 'Excel', accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } }]
+                });
+                supplierDirHandle = fh;
+                await saveHandle('directoryFile', fh);
+                const file = await fh.getFile();
+                document.getElementById('suppDirFileName').textContent = file.name;
+                document.getElementById('suppDirStatus').style.display = 'block';
+                showMessage('✅ Supplier Directory loaded: ' + file.name, 'success');
+            } catch(e) {
+                if (e.name !== 'AbortError') showMessage('Error: ' + e.message, 'error');
+            }
+        }
+
+        function fillSupplierPO(match) {
+            document.getElementById('supplierName').value = match.name;
+            showMessage('✅ Supplier populated!', 'success');
+        }
+
+        async function populateSupplierPO() {
+            const name = document.getElementById('supplierName').value.trim();
+            if (!name) { showMessage('Type a supplier name first, then click Populate.', 'error'); return; }
+            if (!supplierDirHandle) { showMessage('⚠️ Load your Supplier Directory Excel first.', 'error'); return; }
+
+            // Remove any existing picker
+            const old = document.getElementById('supplierPickerDropdownPO');
+            if (old) old.remove();
+
+            try {
+                const file  = await supplierDirHandle.getFile();
+                const ab    = await file.arrayBuffer();
+                const wb    = XLSX.read(ab, { type: 'array' });
+                const ws    = wb.Sheets['Suppliers'];
+                if (!ws) { showMessage('No "Suppliers" sheet found in directory.', 'error'); return; }
+                const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+                const get   = (r, c) => String((ws[XLSX.utils.encode_cell({r, c})] || {}).v || '');
+
+                const matches = [];
+                for (let r = 1; r <= range.e.r; r++) {
+                    if (get(r, 0).toLowerCase().includes(name.toLowerCase())) {
+                        matches.push({ name: get(r,0) });
+                    }
+                }
+
+                if (matches.length === 0) { showMessage('Supplier "' + name + '" not found in directory.', 'error'); return; }
+
+                // Single match — fill directly
+                if (matches.length === 1) { fillSupplierPO(matches[0]); return; }
+
+                // Multiple matches — show picker
+                const btn    = document.querySelector('button[onclick="populateSupplierPO()"]');
+                const picker = document.createElement('div');
+                picker.id    = 'supplierPickerDropdownPO';
+                picker.style.cssText = `position:absolute;z-index:9999;background:white;border:2px solid #7c3aed;
+                    border-radius:7px;box-shadow:0 8px 24px rgba(0,0,0,0.18);min-width:280px;overflow:hidden;`;
+
+                const title = document.createElement('div');
+                title.textContent  = `${matches.length} matches — pick one:`;
+                title.style.cssText = 'padding:8px 12px;font-size:11px;font-weight:700;color:#7c3aed;background:#f5f3ff;border-bottom:1px solid #e9d5ff;';
+                picker.appendChild(title);
+
+                matches.forEach(m => {
+                    const item = document.createElement('div');
+                    item.textContent  = m.name;
+                    item.style.cssText = `padding:9px 14px;font-size:13px;cursor:pointer;border-bottom:1px solid #f3f4f6;transition:background 0.15s;`;
+                    item.onmouseenter = () => item.style.background = '#f5f3ff';
+                    item.onmouseleave = () => item.style.background = '';
+                    item.onclick = () => { picker.remove(); fillSupplierPO(m); };
+                    picker.appendChild(item);
+                });
+
+                btn.style.position = 'relative';
+                btn.parentNode.style.position = 'relative';
+                btn.parentNode.appendChild(picker);
+
+                setTimeout(() => {
+                    document.addEventListener('click', function closePicker(e) {
+                        if (!picker.contains(e.target)) { picker.remove(); document.removeEventListener('click', closePicker); }
+                    });
+                }, 100);
+
+            } catch(e) {
+                showMessage('Error: ' + e.message, 'error');
+            }
         }
     </script>
 </body>
